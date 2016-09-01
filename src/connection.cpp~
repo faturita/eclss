@@ -1,0 +1,135 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <string>
+#include <dlfcn.h>
+
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/timeb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
+#include <sys/ioctl.h>
+#include <fcntl.h>
+
+#include <errno.h>
+#include <time.h>
+
+#include "connection.h"
+
+/**
+ * Verifica que la conexion este respondiendo OK para una consulta testigo tipo
+ * 
+ *
+ * @param   host    
+ * @param   port    
+ * @param   msg     Mensaje a enviar.
+ * @param   expmsg  Mensaje a recibir.
+ * @return  0 OK, 1 ERROR.
+ */
+int checkConnection(char *host, char *port, char *msg, char *expectedMsg)
+{
+    int sd;
+    int ret=1;
+    struct sockaddr_in sa ;
+
+    int iTimeout = 20000;
+    struct hostent *hp;
+    int val;
+    int flags;
+
+    if ( (sd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
+        printf ("Error al crear el socket.\n");
+        return -1;
+    }
+
+    memset(&sa, '\0', sizeof(sa));
+
+    sa.sin_family       = AF_INET;
+    sa.sin_addr.s_addr        = inet_addr(host);
+    sa.sin_port         = htons( atoi(port) );
+
+    if ( (connect(sd, (struct sockaddr*)&sa, sizeof(sa))) < 0 ) {
+        printf ("Error al conectarse\n");
+        return -1;
+    }
+
+    if ( (flags = fcntl(sd, F_GETFL, 0)) < 0) {
+	    printf ("Error fcntl get.");
+    } else {
+	    flags |= O_NONBLOCK;
+	    if (fcntl(sd, F_SETFL, flags) < 0) {
+    	    printf ("Error fcntl set");
+        }  else {
+	        //printf ("Setting NONBLOCKING IO");
+        }
+    }
+
+    printf ("Connect to %s:%s successfully\n", host, port);
+
+	char buf[2048];
+
+    sprintf(buf,"%s\r\n",msg);
+
+    printf ("Sent: %s\n", buf);
+
+	val = write(sd, buf, strlen(buf));
+
+    if (val < 0) {
+        printf ("Broken pipe!");
+        return 1;
+    }
+
+
+    struct timeb tm,tm2;
+
+    ftime(&tm);
+
+    while ( ( (val = read( sd, buf, 4096))!=0 )  )
+    {
+    
+	    if (val > 0 ) {
+	        buf[val] = '\0';
+
+            printf ("[%s]",buf);
+
+            if (strncmp(buf,expectedMsg,strlen(expectedMsg))==0) 
+                ret = 0;
+            else 
+                ret = 1;
+
+            break;
+	    
+        }
+
+        // En el caso de procesos concurrentes de chequeo
+        // aca deberia ir un sleep(0) para forzar el thread switch
+
+        // Capturo timestamp.
+
+        ftime(&tm2);
+
+        int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+        // Deberia poder ser configurable tambien para controlar
+        // que (strcmp(resultcode,"000")!=0)
+        if ( mill > iTimeout ) {
+            printf ("Giving up after %d milliseconds\n", iTimeout);
+            // Espero 10 s y si la conexion no la cierran del otro lado la cierro yo.
+            // Las conexiones de keep alive se esperan este tiempo, si no se cierra.
+            // Aca deberia tomar el Keep-Alive que envia el cliente y setearlo con esto.
+
+            break;
+        }
+    }
+
+    close(sd);
+
+    return ret;
+
+}
+
+

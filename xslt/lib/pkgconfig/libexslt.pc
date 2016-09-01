@@ -1,0 +1,12 @@
+prefix=/home/vexrarod/work/apps/eclss/xslt/
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+
+Name: libexslt
+Version: 0.8.11
+Description: EXSLT Extension library
+Requires: libxml-2.0
+Libs: -L${libdir} -lexslt -lxslt -L/home/vexrarod/work/apps/eclss/xml2/lib/ -L/home/vexrarod/work/apps/eclss//lib -lxml2 -lz -lpthread -lm -lm 
+Cflags: -I${includedir}

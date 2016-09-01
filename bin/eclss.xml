@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document id="document">
+   <display>
+     <uptime>0</uptime>
+   </display>
+   <configuration>
+    <proxy host="myproxy.host.com" port="80" pwd="myuser:mypassword" />
+    <mailserver host="smtp.server.com" port="25" />
+    <timeout>40000</timeout>
+    <alerthits>20</alerthits>
+    <emaillist>myemail@gmail.com</emaillist>
+   </configuration>
+   <application helpurl="www.whatisthissite.com" name="Google" >
+    <url detail="Google" url="http://www.google.com/" proxied="false" />
+    <url detail="Gmail"  url="http://www.gmail.com/" proxied="false" />
+   </application>
+   <connection name="Standard connection" ip="www.google.com" port="5000" expmsg="TSTCHK" chkmsg="1122" />
+</document>

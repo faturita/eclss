@@ -1,0 +1,15 @@
+Requirements:
+=============
+libxslt-1.1.13
+libxml2-2.6.17
+
+(xslt and xml2)
+
+Make
+====
+make 
+make clean
+make install
+
+
+
