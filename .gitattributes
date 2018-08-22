@@ -1,0 +1,4 @@
+xml2/* linguist-vendored
+xslt/* linguist-vendored
+bin/*.xsl linguist-vendored
+bin/*.xml linguist-vendored
