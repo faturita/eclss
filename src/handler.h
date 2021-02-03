@@ -16,6 +16,7 @@ struct CONFIG {
 
 
 void * request_handler(void *arg);
+void * request_handler_test(void *arg);
 void * update_thread(void *arg);
 
 xmlDocPtr updateStatus(xmlDocPtr doc);

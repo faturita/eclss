@@ -116,7 +116,7 @@ extern "C" {
 #ifndef WITH_MODULES
 #define WITH_MODULES
 #endif
-#define LIBXSLT_DEFAULT_PLUGINS_PATH() "/home/vexrarod/work/apps/eclss/xslt//lib/libxslt/1.1"
+#define LIBXSLT_DEFAULT_PLUGINS_PATH() "/Users/rramele/work/eclss/libxslt//lib/libxslt/1.1"
 #endif
 
 /**

@@ -5,16 +5,16 @@
 # It is necessary for linking the library.
 
 # The name that we can dlopen(3).
-dlname='libxslt.so.1'
+dlname='libxslt.1.dylib'
 
 # Names of this library.
-library_names='libxslt.so.1.1.13 libxslt.so.1 libxslt.so'
+library_names='libxslt.1.1.13.dylib libxslt.1.dylib libxslt.dylib'
 
 # The name of the static archive.
 old_library='libxslt.a'
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/home/vexrarod/work/apps/eclss/xml2/lib/ -L/home/vexrarod/work/apps/eclss//lib /home/vexrarod/work/apps/eclss//lib/libxml2.la -ldl -lz -lpthread -lm'
+dependency_libs=' -L/Users/rramele/work/eclss/libxml2/lib/ -L/Users/rramele/work/eclss/libxml2//lib /Users/rramele/work/eclss/libxml2//lib/libxml2.la -ldl -lz -lpthread -liconv -lm'
 
 # Version information for libxslt.
 current=2
@@ -32,4 +32,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/home/vexrarod/work/apps/eclss/xslt//lib'
+libdir='/Users/rramele/work/eclss/libxslt//lib'

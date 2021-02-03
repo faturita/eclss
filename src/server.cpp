@@ -304,17 +304,16 @@ int main(int argc, char *argv[]) {
         pthread_attr_init(&attr);
         //pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
 
-  	    pthread_create(&th, &attr, &request_handler, (void*)&sd);
+        //pthread_create(&th, &attr, &request_handler_test, (void*)&sd);
 
         
-        /**
         if ( fork() == 0) {
             request_handler(&sd);
+            close(sd);
             exit(0);
         } else {
             close (sd);
         }
-        **/
             
             
         //pthread_join( th, NULL);

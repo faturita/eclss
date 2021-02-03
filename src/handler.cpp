@@ -401,6 +401,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                 xmlChar *method = xmlGetProp(innercur, (const xmlChar *)"method");
                 xmlChar *postData = xmlGetProp(innercur, (const xmlChar *)"postData");
                 xmlChar *errorWaterMark = xmlGetProp(innercur, (const xmlChar *)"errorWaterMark");
+                xmlChar *expectedWaterMark = xmlGetProp(innercur, (const xmlChar *)"expectedWaterMark");
                 printf ("URL:%s\r\n",url);
                 if ( url != NULL && checkInterval(innercur,interval, lastCheck) ) {
                     // Por cada una de las URL a verificar.
@@ -416,7 +417,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                     **/
 
                     unsigned char *encodedProxyPwd;
-                    encodedProxyPwd = base64_encode ((unsigned char *)conf.proxyPwd, strlen(conf.proxyPwd)) ;
+                    //encodedProxyPwd = base64_encode ((unsigned char *)conf.proxyPwd, strlen(conf.proxyPwd)) ;
 
                     if (proxied != NULL && xmlStrcmp((const xmlChar *)"false",proxied)==0) {
                         strcpy(proxyhost,"");
@@ -424,10 +425,12 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                         strcpy(proxyhost,conf.proxyhost);
                     }
 
-                    int ret = checkSSLAccess((char *)url,(char *)method,&structurl,conf.timeout,proxyhost,atoi(conf.proxyport),(char *)encodedProxyPwd,(char *)postData,(char *)errorWaterMark);
+                    int ret = checkSSLAccess((char *)url,(char *)method,&structurl,conf.timeout,proxyhost,atoi(conf.proxyport),(char *)encodedProxyPwd,(char *)postData,(char *)errorWaterMark,
+                                             (char*)expectedWaterMark);
 
-                    free(encodedProxyPwd);
-                    
+                    //free(encodedProxyPwd);
+
+
                     char httpstatus[256];
                     sprintf (httpstatus,"%d",structurl.httpstatus);
                     xmlSetProp(innercur,(const xmlChar *)"httpretcode", (const xmlChar *)httpstatus);
@@ -436,6 +439,9 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                     xmlSetProp(innercur,(const xmlChar *)"latency", (const xmlChar *)latency);
                     xmlSetProp(innercur,(const xmlChar *)"urlstatus", (const xmlChar *)structurl.status); 
                     
+                    printf("URL: %s</br>Latency: %s</br>Result HTTP: %s</br>Status: %s</br></br>",url,latency,httpstatus,structurl.status);
+
+
                     if (ret == 0 ) {
                         xmlSetProp(innercur,(const xmlChar *)"status", (const xmlChar *)"Online");
                     } else {
@@ -453,6 +459,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                 }
                 xmlFree(url);
                 if (errorWaterMark != NULL) xmlFree(errorWaterMark);
+                if (expectedWaterMark != NULL) xmlFree(expectedWaterMark);
                 if (method != NULL) xmlFree(method);
                 if (postData != NULL) xmlFree(postData);
                 if (proxied != NULL) xmlFree(proxied);
@@ -621,6 +628,54 @@ void test()
 
 
 
+/**
+ * Test
+ *
+ **/
+void * request_handler_test(void *arg)
+{
+    int sd;
+    int val = 0;
+    char inbuf[4096];
+    char buf[4096];
+    char msg[2048];
+    size_t len;
+
+    sd = *((int*)arg);
+
+    while ( (val = read( sd, inbuf, 4098))>0 ) {
+        if (val > 0 ) {
+            inbuf[val]='\0';
+            printf ("%s", inbuf);
+        }
+    }
+
+    strcpy(buf,"HTTP/1.1 200 Ok\r\n");
+    strcat(buf,"Date: Mon, 2 Feb 2021 19:25:37 GMT\r\n");
+    strcat(buf,"Server: Apache/1.3.28 (Unix) mod_jk/1.2.5 mod_ssl/2.8.15 OpenSSL/0.9.7b\r\n");
+    strcat(buf,"Connection: close\r\n");
+    strcat(buf,"Content-Type: text/html; charset=iso-8859-1\r\n");
+    sprintf(msg, "Content-Length: %d\r\n", strlen("<html><head></head><body>Testing</body></html>"));
+    strcat(buf,msg);
+
+    strcat(buf,"\r\n");
+
+    strcat(buf,"<html><head></head><body>Testing</body></html>");
+
+
+    printf("%s\n",buf);
+
+    val = write ( sd, buf, strlen(buf));
+
+    printf ("Finished processing request...\n");
+    int d=0;
+    close(sd);
+    pthread_exit(&d);
+}
+
+
+
+
 
 /**
  * Process each request.
@@ -641,12 +696,12 @@ void * request_handler(void *arg)
     while ( (val = read( sd, inbuf, 4098))>0 ) {
         if (val > 0 ) {
             inbuf[val]='\0';
-            //printf ("%s", inbuf);
+            printf ("%s", inbuf);
 
             // TODO: This parser sucks, sorry.
             if ( strstr(inbuf,"GET /help")!=NULL ) {
                 strcpy(buf,"HTTP/1.1 200 Ok\r\n");
-                strcat(buf,"Date: Mon, 21 Mar 2005 12:10:37 GMT\r\n");
+                strcat(buf,"Date: Mon, 2 Feb 2021 19:25:37 GMT\r\n");
                 strcat(buf,"Server: Apache/1.3.28 (Unix) mod_jk/1.2.5 mod_ssl/2.8.15 OpenSSL/0.9.7b\r\n");
                 strcat(buf,"Connection: close\r\n");
                 strcat(buf,"Content-Type: text/html; charset=iso-8859-1\r\n");
@@ -677,7 +732,7 @@ void * request_handler(void *arg)
 
                 break;
 
-            }
+            } else
             if ( strstr(inbuf,"GET /stop")!=NULL ) {
                 strcpy(buf,"HTTP/1.1 200 Ok\r\n");
                 strcat(buf,"Date: Mon, 21 Mar 2005 12:10:37 GMT\r\n");
@@ -697,7 +752,7 @@ void * request_handler(void *arg)
 
                 break;
 
-            }
+            } else
             if ( strstr(inbuf,"GET /reload")!=NULL ) {
                 // Load from the XML file and reset everything else.
                 strcpy(buf,"HTTP/1.1 200 Ok\r\n");
@@ -719,7 +774,7 @@ void * request_handler(void *arg)
                 break;
 
                 
-            }
+            } else
             if ( strstr(inbuf,"GET / ")==NULL ) {
                 // Error PAGE
                 strcpy(buf,"HTTP/1.1 400 Not Found\r\n");
@@ -734,7 +789,7 @@ void * request_handler(void *arg)
 
                 val = write ( sd, buf, strlen(buf));
                 break;
-            }
+            } else {
             
 
             // This is a good one, show what you have.
@@ -778,7 +833,7 @@ void * request_handler(void *arg)
 
 
             break;
-
+            }
         } else {
             printf ("Error from the client (Broken pipe)\n");
         }

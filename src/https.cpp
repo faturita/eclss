@@ -15,8 +15,8 @@
 #include <errno.h>
 #include <string>
 #include <dlfcn.h>
-
-
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/timeb.h>
@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <openssl/crypto.h>
 #include <openssl/pem.h>
-#include <openssl/dso.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/rsa.h>
@@ -51,6 +50,31 @@
 #include "https.h"
 
 extern int DEBUG;
+
+unsigned int atoh(char *ap)
+{
+    char *p;
+    unsigned int n;
+    int digit,lcase;
+
+    p = ap;
+    n = 0;
+    while(*p == ' ' || *p == '	')
+        p++;
+
+    if(*p == '0' && ((*(p+1) == 'x') || (*(p+1) == 'X')))
+        p+=2;
+
+    while ((digit = (*p >= '0' && *p <= '9')) ||
+        (lcase = (*p >= 'a' && *p <= 'f')) ||
+        (*p >= 'A' && *p <= 'F')) {
+        n *= 16;
+        if (digit)	n += *p++ - '0';
+        else if (lcase)	n += 10 + (*p++ - 'a');
+        else		n += 10 + (*p++ - 'A');
+    }
+    return(n);
+}
 
 /**
  * Java-Like Get index of.
@@ -88,10 +112,20 @@ URL parseURL(char *urlstring)
     strncpy(url.proto,urlstring,fslash);
     url.proto[fslash]='\0';
     int slash = getIndexOf(urlstring,'/',3);
-    strncpy(url.host,urlstring+3+fslash,slash-(3+fslash));
-    url.host[slash-(3+fslash)]='\0';
-    strncpy(url.path,urlstring+slash, strlen(urlstring)-slash);
-    url.path[strlen(urlstring)-slash]='\0';
+    if (slash == -1)
+    {
+        slash = strlen(urlstring);
+        strncpy(url.host,urlstring+3+fslash,slash-(3+fslash));
+        url.host[slash-(3+fslash)]='\0';
+        strncpy(url.path,urlstring+slash, strlen(urlstring)-slash);
+        strcpy(url.path, "/");
+    } else {
+        strncpy(url.host,urlstring+3+fslash,slash-(3+fslash));
+        url.host[slash-(3+fslash)]='\0';
+        strncpy(url.path,urlstring+slash, strlen(urlstring)-slash);
+        url.path[strlen(urlstring)-slash]='\0';
+    }
+
 
     if (getIndexOf(url.host,':',1)!=-1) {
         char port[10];
@@ -181,7 +215,7 @@ void pre_https_proxy_dialog(int sd,char host[256],int port, char encodedpwd[256]
  * HTTP proxy dialog.
  *
  **/
-int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iTimeout, char *encodedPwdProxy, char *errorWaterMark) {
+int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iTimeout, char *encodedPwdProxy, char *errorWaterMark, char *expectedWaterMark) {
     
     char buf[4096];
     char aux[4096];
@@ -192,6 +226,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     time_t elapsedTime;
     int i;
     int iapperror=0;
+    char headers[4096];
                 
     ssize_t val;
 
@@ -203,7 +238,8 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     sprintf(buf,"%s %s HTTP/1.1\r\n",url->method,url->path);
     strcat(buf,"Accept: application/vnd.ms-excel, application/msword, application/vnd.ms-powerpoint, image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, application/x-comet, application/x-shockwave-flash, */*\r\n");
     strcat(buf,"Accept-Language: es-ar\r\n");
-    strcat(buf,"Accept-Encoding: gzip, deflate\r\n");
+    //strcat(buf,"Accept-Encoding: gzip, deflate\r\n");
+    strcat(buf,"Accept-Encoding: utf-8\r\n");
     strcat(buf,"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 4.0)\r\n");
 
     // Host, required in HTTP 1.1
@@ -251,6 +287,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
     if (val < 0) {
         // The pipe is broken, error.
+        printf("Broken pipe\n");
         return -1;
     }
     
@@ -270,6 +307,343 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
     //while ( (val = read( sd, inbuf, 4096))!=0 ) 
     // Remember that the order inside the conditions is very important.
+
+    int h=0;
+
+    char response[128000];
+    int respcounter=0;
+
+    char conbuf[1];
+
+
+    // Headers
+    char HTTPEncoding[4096];
+    char HTTPTransferEncoding[4096];
+    char HTTPContentLength[4096]; unsigned int contentlength=0;
+
+    memset(HTTPEncoding,0,sizeof(HTTPEncoding));
+    memset(response,0,sizeof(response));
+
+
+    // Headers
+    while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
+            ( (val = read( sd, conbuf, 1))!=0 )  )
+    {
+        char header[4096];
+
+        if (val > 0 ) {
+            header[h++] = conbuf[0];
+
+            response[respcounter++]=conbuf[0];
+
+            if (strstr(response,"\r\n\r\n") != NULL) {
+                printf("End of headers %s\n",response);
+                break;
+            }
+
+            if ( strstr(header, "\r\n") != NULL) {
+                hinbuf = strstr(header, "\r\n");
+                hinbuf[0] = '\0';
+
+                memset(inbuf,0,sizeof(4096));
+                strcpy(inbuf, header);
+
+                printf("Header: %s\n", header);
+                h=0;
+
+                // Get the cookie if present.
+                if ( strstr(inbuf, "Set-Cookie") != NULL ) {
+
+                    hinbuf = strstr(inbuf,"Set-Cookie")+12;
+
+                    for(i=0;hinbuf< strstr( strstr(inbuf,"Set-Cookie")+12,";");hinbuf+=sizeof(char)) {
+                        aux[i]=*(hinbuf);
+                        i++;
+                    }
+
+                    aux[i]='\0';
+                    printf ("Read Cookie: %s\r\n", aux);
+                    strcpy(jsession, aux);
+                }
+
+                // Sets ResultCode
+                if (strstr(inbuf,"HTTP/1.")!=NULL) {
+                    strncpy(resultcode,strstr(inbuf,"HTTP/1.")+9,3);
+                    printf("Result Code: %s\n", resultcode);
+                }
+
+                if (strstr(inbuf,"Content-Encoding: ")!=NULL)
+                {
+                    strncpy(HTTPEncoding, strstr(inbuf,"Content-Encoding: ")+strlen("Content-Encoding: "),strlen(inbuf));
+                    printf("Encoding: %s\n", HTTPEncoding);
+                }
+
+                if (strstr(inbuf,"Transfer-Encoding: ")!=NULL)
+                {
+                    strncpy(HTTPTransferEncoding, strstr(inbuf,"Transfer-Encoding: ")+strlen("Transfer-Encoding: "),strlen(inbuf));
+                    printf("Transfer encoding: %s\n", HTTPTransferEncoding);
+                }
+
+                if (strstr(inbuf,"Content-Length: ")!= NULL)
+                {
+                    strncpy(HTTPContentLength, strstr(inbuf,"Content-Length: ")+strlen("Content-Length: "),strlen(inbuf));
+                    printf("Content Length: %s\n", HTTPContentLength);
+                    contentlength = atoi(HTTPContentLength);
+                }
+
+            }
+        }
+
+        // Get timestamp
+
+        ftime(&tm2);
+
+        int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+        // Configurable will be better.
+        // que (strcmp(resultcode,"000")!=0)
+        if ( mill > iTimeout ) {
+            printf("Timeout\n");
+            break;
+        }
+    }
+
+    if ( strstr(HTTPTransferEncoding,"chunked") != NULL)
+    {
+        unsigned int chunklength=0;
+        h=0;
+        // Chunked content length
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
+                ( (val = read( sd, conbuf, 1))!=0 )  )
+        {
+            char length[4096];
+
+            if (val > 0 ) {
+                length[h++] = conbuf[0];
+
+                response[respcounter++]=conbuf[0];
+
+                if (strstr(length,"\r\n") != NULL) {
+                    hinbuf = strstr(length, "\r\n");
+                    hinbuf[0] = '\0';
+
+                    memset(inbuf,0,sizeof(4096));
+                    strcpy(inbuf, length);
+
+                    chunklength = atoh(length);
+
+                    printf("Length: %s\n", length);
+                    printf("Length: %d\n", chunklength);
+                    h=0;
+                    break;
+
+                }
+            }
+
+            // Get timestamp
+
+            ftime(&tm2);
+
+            int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+            // Configurable will be better.
+            // que (strcmp(resultcode,"000")!=0)
+            if ( mill > iTimeout ) {
+                printf("Timeout\n");
+                break;
+            }
+        }
+
+        h=0;
+        char buffer[chunklength+1];
+        memset(buffer,0,strlen(buffer));
+        // Chunked content length
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
+                ( (val = read( sd, conbuf, 1))!=0 )  )
+        {
+
+            if (val > 0 ) {
+                buffer[h++] = conbuf[0];
+
+                response[respcounter++]=conbuf[0];
+
+                if (h==chunklength)
+                {
+                    buffer[chunklength] = '\0';
+                    if (strstr(HTTPEncoding,"gzip") != NULL)
+                    {
+
+                        FILE *pf = fopen("f.txt.gz","w");
+
+                        fwrite(buffer,1,chunklength,pf);
+
+                        fclose(pf);
+
+
+                        system("gunzip -f f.txt.gz");
+
+
+                        pf = fopen("f.txt", "r");
+
+                        if(pf == NULL) {
+                            printf("Cannot open file\n");
+                            exit(1);
+                        }
+
+
+                        iapperror = 0;
+                        while ( fgets(inbuf, 4096, pf) != NULL)
+                        {
+                            if ( expectedWaterMark != NULL)
+                            {
+                                if ( strstr(inbuf,expectedWaterMark)!=NULL )
+                                {
+                                    printf("Found !\n");
+                                } else {
+                                    // When the watermark is not found I want to flag it as an error.
+                                    iapperror = 1;
+                                }
+                            }
+
+                            if (strstr(inbuf,"</HTML>") != NULL) {
+                                // Heuristic to speed up the processing time.
+                                // Content-Length could also work.
+                                printf("all processed\n");
+                            }
+                        }
+                    } else {
+                        iapperror=0;
+                        if ( expectedWaterMark != NULL)
+                        {
+                            if ( strstr(buffer,expectedWaterMark)!=NULL )
+                            {
+                                printf("Found !\n");
+                            } else {
+                                // When the watermark is not found I want to flag it as an error.
+                                iapperror = 1;
+                            }
+                        }
+
+                        if (strstr(buffer,"</HTML>") != NULL) {
+                            // Heuristic to speed up the processing time.
+                            // Content-Length could also work.
+                            printf("all processed\n");
+                        }
+                    }
+
+                    if (iapperror==0)
+                    {
+                        system("osascript -e 'tell application \"Messages\" to send \"Página del Gobierno de la Ciudad Vacunas\"  to buddy \"Julieta Besteiro\"'");
+                    }
+
+
+                    break;
+                }
+
+
+            }
+
+            // Get timestamp
+
+            ftime(&tm2);
+
+            int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+            // Configurable will be better.
+            // que (strcmp(resultcode,"000")!=0)
+            if ( mill > iTimeout ) {
+                printf("Timeout\n");
+                break;
+            }
+        }
+
+        printf("Bytes read %d\n",h);
+
+        chunklength=0;
+        h=0;
+        // Chunked content length
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
+                ( (val = read( sd, conbuf, 1))!=0 )  )
+        {
+            char length[4096];
+
+            if (val > 0 ) {
+                length[h++] = conbuf[0];
+
+                response[respcounter++]=conbuf[0];
+
+                if (strstr(length,"\r\n") != NULL) {
+                    hinbuf = strstr(length, "\r\n");
+                    hinbuf[0] = '\0';
+
+                    memset(inbuf,0,sizeof(4096));
+                    strcpy(inbuf, length);
+
+                    chunklength = atoh(length);
+
+                    printf("Length: %s\n", length);
+                    printf("Length: %d\n", chunklength);
+                    h=0;
+                    break;
+
+                }
+            }
+
+            // Get timestamp
+
+            ftime(&tm2);
+
+            int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+            // Configurable will be better.
+            // que (strcmp(resultcode,"000")!=0)
+            if ( mill > iTimeout ) {
+                printf("Timeout\n");
+                break;
+            }
+        }
+
+    } else {
+
+        printf("Waiting body...\n");
+        h=0;
+        // HTTP Content Length
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
+                ( (val = read( sd, conbuf, 1))!=0 )  )
+        {
+            char length[4096];
+
+            if (val > 0 ) {
+                length[h++] = conbuf[0];
+
+                response[respcounter++]=conbuf[0];
+
+                if (h==contentlength)
+                {
+                    // Check for the watermark inside the reply (IF WATERMARK IN, ERROR)
+                    if ( errorWaterMark != NULL && strstr(inbuf,errorWaterMark)!=NULL ) {
+                        iapperror = 1;
+                        break;
+                    }
+                }
+            }
+
+            // Get timestamp
+
+            ftime(&tm2);
+
+            int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+            // Configurable will be better.
+            // que (strcmp(resultcode,"000")!=0)
+            if ( mill > iTimeout ) {
+                printf("Timeout\n");
+                break;
+            }
+        }
+    }
+
+    /**
 
     while ( ( (ssl!=NULL) && (val = SSL_read(ssl,inbuf,4096))!=0 ) ||
             ( (val = read( sd, inbuf, 4096))!=0 )  )
@@ -308,7 +682,8 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
                     // NoWatermark, for this application only HTTP is required.
                     break;
                 }
-            } 	   
+            }
+
             
             // Check for the watermark inside the reply (IF WATERMARK IN, ERROR)
             if ( errorWaterMark != NULL && strstr(inbuf,errorWaterMark)!=NULL ) { 
@@ -336,8 +711,12 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
             break;
         }
 	
-    }
+    }**/
     
+
+
+
+
     elapsedTime = time(NULL) - elapsedTime;
     ftime(&tm2);
 
@@ -395,11 +774,11 @@ int w_ssl_connect(int sd, URL *url, SSL_CTX **p_ctx, SSL **p_ssl)
 
    	SSL_CTX* ctx;
   	SSL*     ssl=NULL;
-	SSL_METHOD *meth;
+    const SSL_METHOD *meth;
     time_t elapsedTime;
     int ret;
 
-	meth = SSLv23_client_method();
+    meth = SSLv23_client_method();
 	ctx = SSL_CTX_new (meth);
 
     if (strcmp(url->proto,"https")==0) {
@@ -454,6 +833,8 @@ int w_ssl_connect(int sd, URL *url, SSL_CTX **p_ctx, SSL **p_ssl)
 
     (*p_ssl) = ssl;
     (*p_ctx) = ctx;
+
+    return ret;
 }
 
 
@@ -532,7 +913,7 @@ int w_smart_connect(URL *url)
  * SSL Handshaking and connection establishment.
  * 
  **/
-int checkSSLAccess(char *urlstring,char *method, URL *url, int iTimeout, char *proxyhost, int proxyport, char *encodedProxyPwd, char *postData, char *errorWaterMark)
+int checkSSLAccess(char *urlstring,char *method, URL *url, int iTimeout, char *proxyhost, int proxyport, char *encodedProxyPwd, char *postData, char *errorWaterMark, char *expectedWaterMark)
 {
 
     (*url) = parseURL(urlstring);
@@ -584,7 +965,7 @@ int checkSSLAccess(char *urlstring,char *method, URL *url, int iTimeout, char *p
         return ret;
     }
 
-    ret = http_dialog(sd,ssl,url,postData,jsession,iTimeout,url->encodedProxyPwd, errorWaterMark);
+    ret = http_dialog(sd,ssl,url,postData,jsession,iTimeout,url->encodedProxyPwd, errorWaterMark, expectedWaterMark);
 
     if (ssl != NULL)
         SSL_shutdown(ssl);

@@ -1,4 +1,4 @@
-prefix=/home/vexrarod/work/apps/eclss/xslt/
+prefix=/Users/rramele/work/eclss/libxslt/
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
@@ -8,5 +8,5 @@ Name: libexslt
 Version: 0.8.11
 Description: EXSLT Extension library
 Requires: libxml-2.0
-Libs: -L${libdir} -lexslt -lxslt -L/home/vexrarod/work/apps/eclss/xml2/lib/ -L/home/vexrarod/work/apps/eclss//lib -lxml2 -lz -lpthread -lm -lm 
+Libs: -L${libdir} -lexslt -lxslt -L/Users/rramele/work/eclss/libxml2/lib/ -L/Users/rramele/work/eclss/libxml2//lib -lxml2 -lz -lpthread -liconv -lm  
 Cflags: -I${includedir}

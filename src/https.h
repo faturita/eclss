@@ -16,10 +16,10 @@ struct URL {
     char encodedProxyPwd[256];
 };
 
-int checkSSLAccess(char *urlstring,char *method, URL *url, int iTimeout, char *proxyhost, int proxyport, char *encodedProxyPwd, char *postData,char *errorWaterMark);
+int checkSSLAccess(char *urlstring,char *method, URL *url, int iTimeout, char *proxyhost, int proxyport, char *encodedProxyPwd, char *postData,char *errorWaterMark, char *expectedWaterMark);
 int w_smart_connect(URL *url);
 int w_ssl_connect(int sd, URL *url, SSL_CTX **p_ctx, SSL **p_ssl);
-int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iTimeout,char *encodedProxyPwd, char *errorWaterMark);
+int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iTimeout,char *encodedProxyPwd, char *errorWaterMark, char *expectedWaterMark);
 URL parseURL(char *urlstring);
 void pre_https_proxy_dialog(int sd,char host[256],int port,char encodedProxyPwd[256]);
  

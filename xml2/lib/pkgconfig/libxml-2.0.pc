@@ -1,4 +1,4 @@
-prefix=/home/vexrarod/work/apps/eclss/
+prefix=/Users/rramele/work/eclss/libxml2/
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
@@ -8,5 +8,5 @@ Name: libXML
 Version: 2.6.17
 Description: libXML library version2.
 Requires:
-Libs: -L${libdir} -lxml2 -lpthread -lz  -lm 
+Libs: -L${libdir} -lxml2 -lpthread -lz  -liconv -lm 
 Cflags: -I${includedir}/libxml2 -I${includedir}/libxml2 

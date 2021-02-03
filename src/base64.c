@@ -18,7 +18,7 @@
 unsigned char *base64_encode (unsigned char *buffer, unsigned int len) {
 
   unsigned char *ret = (unsigned char *) malloc ((((len+2)/3)*4)+1);
-  EVP_EncodeBlock (ret, buffer, len);
+  //EVP_EncodeBlock (ret, buffer, len);
   ret[(((len+2)/3)*4)] = 0;
   return ret;
 }
@@ -26,7 +26,7 @@ unsigned char *base64_encode (unsigned char *buffer, unsigned int len) {
 unsigned char *base64_decode (unsigned char *buffer, unsigned int len) {
 
   unsigned char *ret = (unsigned char *) malloc ((((len+2)/3)*4)+1);
-  EVP_DecodeBlock (ret, buffer, len);
+  //EVP_DecodeBlock (ret, buffer, len);
   ret[(((len+2)/3)*4)] = 0;
   return ret;
 }

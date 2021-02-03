@@ -1,6 +1,6 @@
 #! /bin/sh
 
-prefix=/home/vexrarod/work/apps/eclss/
+prefix=/Users/rramele/work/eclss/libxml2/
 exec_prefix=${prefix}
 includedir=${prefix}/include
 libdir=${exec_prefix}/lib
@@ -84,12 +84,12 @@ while test $# -gt 0; do
 	then
 	    if [ "-L${libdir}" = "-L/usr/lib64" ]
 	    then
-		echo -lxml2 -lz -lpthread  -lm  
+		echo -lxml2 -lz -lpthread  -liconv -lm  
 	    else
-		echo -L${libdir} -lxml2 -lz -lpthread  -lm  
+		echo -L${libdir} -lxml2 -lz -lpthread  -liconv -lm  
 	    fi
 	else
-	    echo -L${libdir} -lxml2 -lz -lpthread  -lm  
+	    echo -L${libdir} -lxml2 -lz -lpthread  -liconv -lm  
 	fi
        	;;
 

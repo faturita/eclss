@@ -1,12 +1,20 @@
 SRC=src/
 FUENTES=$(SRC)server.cpp $(SRC)https.cpp $(SRC)handler.cpp $(SRC)xslprocessor.cpp $(SRC)email.cpp  $(SRC)connection.cpp $(SRC)base64.c
 FUENTES2=$(SRC)assassin.c $(SRC)https.cpp 
+FUENTEST=$(SRC)testconnection.cpp $(SRC)https.cpp $(SRC)handler.cpp $(SRC)xslprocessor.cpp $(SRC)email.cpp $(SRC)connection.cpp $(SRC)base64.c
 
 # -lcliv2
 
 bin/eclss : $(FUENTES)
-	g++ -g -ggdb $(FUENTES) -I/usr/local/include/node/ -o bin/eclss  -lpthread -lssl -Lxslt/lib/ -Ixslt/include/ -Ixml2/include/libxml2/ -Lxml2/lib/ -lxslt -D_REENTRANT	
+	g++ -g -ggdb $(FUENTES) -Iopenssl/include -o bin/eclss  -lpthread -Lopenssl/lib/ -Lxslt/lib/ -Ixslt/include/ -Ixml2/include/libxml2/ -Lxml2/lib/ -lxml2 -lxslt -lssl -D_REENTRANT	
 	kill -9 `pgrep eclss` || echo 'no processes'
+
+bin/test : $(FUENTEST)
+
+	g++ -g -ggdb $(FUENTEST) -Iopenssl/include -o bin/test  -lpthread -Lopenssl/lib/ -Lxslt/lib/ -Ixslt/include/ -Ixml2/include/libxml2/ -Lxml2/lib/ -lxml2 -lxslt -lssl -D_REENTRANT	
+	kill -9 `pgrep eclss` || echo 'no processes'
+
+
 bin/assassin : $(FUENTES2)
 	g++ -g -ggdb $(FUENTES2) -o bin/assassin -lpthread -lssl -D_REENTRANT 
 clean :

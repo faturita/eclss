@@ -64,8 +64,10 @@ int checkConnection(char *host, char *port, char *msg, char *expectedMsg)
     sa.sin_addr.s_addr        = inet_addr(host);
     sa.sin_port         = htons( atoi(port) );
 
+    printf("Connecting to %s at port %d.\n", host, atoi(port));
+
     if ( (connect(sd, (struct sockaddr*)&sa, sizeof(sa))) < 0 ) {
-        printf ("Connection Error\n");
+        printf ("TCP/IP Connection Error\n");
         return -1;
     }
 

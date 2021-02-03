@@ -1,6 +1,6 @@
 #! /bin/sh
 
-prefix=/home/vexrarod/work/apps/eclss/xslt/
+prefix=/Users/rramele/work/eclss/libxslt/
 exec_prefix=${prefix}
 exec_prefix_set=no
 includedir=${prefix}/include
@@ -83,11 +83,11 @@ while test $# -gt 0; do
     shift
 done
 
-the_libs="-L${libdir} -lxslt -L/home/vexrarod/work/apps/eclss/xml2/lib/ -L/home/vexrarod/work/apps/eclss//lib -lxml2 -lz -lpthread -lm -lm"
+the_libs="-L${libdir} -lxslt -L/Users/rramele/work/eclss/libxml2/lib/ -L/Users/rramele/work/eclss/libxml2//lib -lxml2 -lz -lpthread -liconv -lm "
 if test "$includedir" != "/usr/include"; then
-    the_flags="$the_flags -I$includedir `/home/vexrarod/work/apps/eclss/xml2//bin/xml2-config --cflags`"
+    the_flags="$the_flags -I$includedir `/Users/rramele/work/eclss/libxml2//bin/xml2-config --cflags`"
 else
-    the_flags="$the_flags `/home/vexrarod/work/apps/eclss/xml2//bin/xml2-config --cflags`"
+    the_flags="$the_flags `/Users/rramele/work/eclss/libxml2//bin/xml2-config --cflags`"
 fi
 
 if $cflags; then

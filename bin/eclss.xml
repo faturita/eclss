@@ -12,7 +12,7 @@
    </configuration>
    <application helpurl="www.whatisthissite.com" name="Google" >
     <url detail="Google" url="http://www.google.com/" proxied="false" />
-    <url detail="Gmail"  url="http://www.gmail.com/" proxied="false" />
+    <url detail="COVID"  url="https://www.buenosaires.gob.ar/coronavirus/vacunacion-covid-19/personal-de-salud" proxied="false" expectedWaterMark="Habilitaremos nuevamente los turnos para la vacunación una vez que se confirme la llegada de una próxima entrega de vacunas a la Ciudad" />
    </application>
-   <connection name="Standard connection" ip="www.google.com" port="5000" expmsg="TSTCHK" chkmsg="1122" />
+   <connection name="Standard connection" ip="www.google.com" port="443" expmsg="body" chkmsg="1122" />
 </document>

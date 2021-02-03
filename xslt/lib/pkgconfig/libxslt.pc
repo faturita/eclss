@@ -1,4 +1,4 @@
-prefix=/home/vexrarod/work/apps/eclss/xslt/
+prefix=/Users/rramele/work/eclss/libxslt/
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
@@ -8,5 +8,5 @@ Name: libxslt
 Version: 1.1.13
 Description: XSLT library version 2.
 Requires: libxml-2.0
-Libs: -L${libdir} -lxslt -L/home/vexrarod/work/apps/eclss/xml2/lib/ -L/home/vexrarod/work/apps/eclss//lib -lxml2 -lz -lpthread -lm -lm
+Libs: -L${libdir} -lxslt -L/Users/rramele/work/eclss/libxml2/lib/ -L/Users/rramele/work/eclss/libxml2//lib -lxml2 -lz -lpthread -liconv -lm 
 Cflags: -I${includedir}
