@@ -236,8 +236,10 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     
     char buf[4096];
     char aux[4096];
-    char inbuf[4096];
-    char *hinbuf;
+    char temp_buffer[4096];
+
+    char *buffer_ptr;
+
     int randd;
     char resultcode[4];
     time_t elapsedTime;
@@ -322,15 +324,13 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
     printf ("Waiting for response....\n");
 
-    //while ( (val = read( sd, inbuf, 4096))!=0 ) 
-    // Remember that the order inside the conditions is very important.
 
-    int h=0;
+    int bf_index=0;
 
     char response[128000];
-    int respcounter=0;
+    int rsp_index=0;
 
-    char conbuf[1];
+    char c_buffer[1];
 
 
     // Headers
@@ -339,19 +339,21 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     char HTTPContentLength[4096]; unsigned int contentlength=0;
 
     memset(HTTPEncoding,0,sizeof(HTTPEncoding));
+    memset(HTTPTransferEncoding,0,sizeof(HTTPTransferEncoding));
+    memset(HTTPContentLength,0,sizeof(HTTPContentLength));
     memset(response,0,sizeof(response));
 
 
-    // Headers
-    while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
-            ( (val = read( sd, conbuf, 1))!=0 )  )
+    // Bring in all the received HTTP Headers.
+    while ( ( (ssl!=NULL) && (val = SSL_read(ssl,c_buffer,1))!=0 ) ||
+            ( (val = read( sd, c_buffer, 1))!=0 )  )
     {
         char header[4096];
 
         if (val > 0 ) {
-            header[h++] = conbuf[0];
+            header[bf_index++] = c_buffer[0];
 
-            response[respcounter++]=conbuf[0];
+            response[rsp_index++]=c_buffer[0];
 
             if (strstr(response,"\r\n\r\n") != NULL) {
                 printf("End of headers %s\n",response);
@@ -359,22 +361,22 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
             }
 
             if ( strstr(header, "\r\n") != NULL) {
-                hinbuf = strstr(header, "\r\n");
-                hinbuf[0] = '\0';
+                buffer_ptr = strstr(header, "\r\n");
+                buffer_ptr[0] = '\0';
 
-                memset(inbuf,0,sizeof(4096));
-                strcpy(inbuf, header);
+                memset(temp_buffer,0,sizeof(4096));
+                strcpy(temp_buffer, header);
 
                 printf("Header: %s\n", header);
-                h=0;
+                bf_index=0;
 
                 // Get the cookie if present.
-                if ( strstr(inbuf, "Set-Cookie") != NULL ) {
+                if ( strstr(temp_buffer, "Set-Cookie") != NULL ) {
 
-                    hinbuf = strstr(inbuf,"Set-Cookie")+12;
+                    buffer_ptr = strstr(temp_buffer,"Set-Cookie")+12;
 
-                    for(i=0;hinbuf< strstr( strstr(inbuf,"Set-Cookie")+12,";");hinbuf+=sizeof(char)) {
-                        aux[i]=*(hinbuf);
+                    for(i=0;buffer_ptr< strstr( strstr(temp_buffer,"Set-Cookie")+12,";");buffer_ptr+=sizeof(char)) {
+                        aux[i]=*(buffer_ptr);
                         i++;
                     }
 
@@ -384,26 +386,26 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
                 }
 
                 // Sets ResultCode
-                if (strstr(inbuf,"HTTP/1.")!=NULL) {
-                    strncpy(resultcode,strstr(inbuf,"HTTP/1.")+9,3);
+                if (strstr(temp_buffer,"HTTP/1.")!=NULL) {
+                    strncpy(resultcode,strstr(temp_buffer,"HTTP/1.")+9,3);
                     printf("Result Code: %s\n", resultcode);
                 }
 
-                if (strstr(inbuf,"Content-Encoding: ")!=NULL)
+                if (strstr(temp_buffer,"Content-Encoding: ")!=NULL)
                 {
-                    strncpy(HTTPEncoding, strstr(inbuf,"Content-Encoding: ")+strlen("Content-Encoding: "),strlen(inbuf));
+                    strncpy(HTTPEncoding, strstr(temp_buffer,"Content-Encoding: ")+strlen("Content-Encoding: "),strlen(temp_buffer));
                     printf("Encoding: %s\n", HTTPEncoding);
                 }
 
-                if (strstr(inbuf,"Transfer-Encoding: ")!=NULL)
+                if (strstr(temp_buffer,"Transfer-Encoding: ")!=NULL)
                 {
-                    strncpy(HTTPTransferEncoding, strstr(inbuf,"Transfer-Encoding: ")+strlen("Transfer-Encoding: "),strlen(inbuf));
+                    strncpy(HTTPTransferEncoding, strstr(temp_buffer,"Transfer-Encoding: ")+strlen("Transfer-Encoding: "),strlen(temp_buffer));
                     printf("Transfer encoding: %s\n", HTTPTransferEncoding);
                 }
 
-                if (strstr(inbuf,"Content-Length: ")!= NULL)
+                if (strstr(temp_buffer,"Content-Length: ")!= NULL)
                 {
-                    strncpy(HTTPContentLength, strstr(inbuf,"Content-Length: ")+strlen("Content-Length: "),strlen(inbuf));
+                    strncpy(HTTPContentLength, strstr(temp_buffer,"Content-Length: ")+strlen("Content-Length: "),strlen(temp_buffer));
                     printf("Content Length: %s\n", HTTPContentLength);
                     contentlength = atoi(HTTPContentLength);
                 }
@@ -412,79 +414,77 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
         }
 
         // Get timestamp
-
         ftime(&tm2);
 
         int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
 
         // Configurable will be better.
-        // que (strcmp(resultcode,"000")!=0)
         if ( mill > iTimeout ) {
             printf("Timeout\n");
             break;
         }
     }
 
+    // @FIXME This is crappy code.  "Chunked" protocol should read the length \r\n (DATA)\r\n and so on.  This only works for one round.
     if ( strstr(HTTPTransferEncoding,"chunked") != NULL)
     {
         unsigned int chunklength=0;
-        h=0;
+        bf_index=0;
         // Chunked content length
-        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
-                ( (val = read( sd, conbuf, 1))!=0 )  )
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,c_buffer,1))!=0 ) ||
+                ( (val = read( sd, c_buffer, 1))!=0 )  )
         {
             char length[4096];
 
             if (val > 0 ) {
-                length[h++] = conbuf[0];
+                length[bf_index++] = c_buffer[0];
 
-                response[respcounter++]=conbuf[0];
+                response[rsp_index++]=c_buffer[0];
 
                 if (strstr(length,"\r\n") != NULL) {
-                    hinbuf = strstr(length, "\r\n");
-                    hinbuf[0] = '\0';
+                    buffer_ptr = strstr(length, "\r\n");
+                    buffer_ptr[0] = '\0';
 
-                    memset(inbuf,0,sizeof(4096));
-                    strcpy(inbuf, length);
+                    memset(temp_buffer,0,sizeof(4096));
+                    strcpy(temp_buffer, length);
 
                     chunklength = atoh(length);
 
-                    printf("Length: %s\n", length);
-                    printf("Length: %d\n", chunklength);
-                    h=0;
+                    printf("Received Length: %s\n", length);
+                    printf("Length Value: %d\n", chunklength);
+                    bf_index=0;
                     break;
 
                 }
             }
 
             // Get timestamp
-
             ftime(&tm2);
 
             int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
 
             // Configurable will be better.
-            // que (strcmp(resultcode,"000")!=0)
             if ( mill > iTimeout ) {
                 printf("Timeout\n");
                 break;
             }
         }
 
-        h=0;
+        bf_index=0;
         char buffer[chunklength+1];
         memset(buffer,0,strlen(buffer));
+
         // Chunked content length
-        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
-                ( (val = read( sd, conbuf, 1))!=0 )  )
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,c_buffer,1))!=0 ) ||
+                ( (val = read( sd, c_buffer, 1))!=0 )  )
         {
 
             if (val > 0 ) {
-                buffer[h++] = conbuf[0];
+                buffer[bf_index++] = c_buffer[0];
 
-                response[respcounter++]=conbuf[0];
+                response[rsp_index++]=c_buffer[0];
 
-                if (h==chunklength)
+                if (bf_index==chunklength)
                 {
                     buffer[chunklength] = '\0';
                     if (strstr(HTTPEncoding,"gzip") != NULL)
@@ -509,20 +509,20 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
 
                         iapperror = 0;
-                        while ( fgets(inbuf, 4096, pf) != NULL)
+                        while ( fgets(temp_buffer, 4096, pf) != NULL)
                         {
                             if ( expectedWaterMark != NULL)
                             {
-                                if ( strstr(inbuf,expectedWaterMark)!=NULL )
+                                if ( strstr(temp_buffer,expectedWaterMark)!=NULL )
                                 {
-                                    printf("Found !\n");
+                                    printf("Expected WaterMark Found !\n");
                                 } else {
                                     // When the watermark is not found I want to flag it as an error.
                                     iapperror = 1;
                                 }
                             }
 
-                            if (strstr(inbuf,"</HTML>") != NULL) {
+                            if (strstr(temp_buffer,"</HTML>") != NULL) {
                                 // Heuristic to speed up the processing time.
                                 // Content-Length could also work.
                                 printf("all processed\n");
@@ -534,7 +534,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
                         {
                             if ( strstr(buffer,expectedWaterMark)!=NULL )
                             {
-                                printf("Found !\n");
+                                printf("Expected WaterMark Found !\n");
                             } else {
                                 // When the watermark is not found I want to flag it as an error.
                                 iapperror = 1;
@@ -561,59 +561,53 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
             }
 
             // Get timestamp
-
             ftime(&tm2);
 
             int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
 
-            // Configurable will be better.
-            // que (strcmp(resultcode,"000")!=0)
             if ( mill > iTimeout ) {
                 printf("Timeout\n");
                 break;
             }
         }
 
-        printf("Bytes read %d\n",h);
+        printf("Bytes read %d\n",bf_index);
 
         chunklength=0;
-        h=0;
+        bf_index=0;
         // Chunked content length
-        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
-                ( (val = read( sd, conbuf, 1))!=0 )  )
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,c_buffer,1))!=0 ) ||
+                ( (val = read( sd, c_buffer, 1))!=0 )  )
         {
             char length[4096];
 
             if (val > 0 ) {
-                length[h++] = conbuf[0];
+                length[bf_index++] = c_buffer[0];
 
-                response[respcounter++]=conbuf[0];
+                response[rsp_index++]=c_buffer[0];
 
                 if (strstr(length,"\r\n") != NULL) {
-                    hinbuf = strstr(length, "\r\n");
-                    hinbuf[0] = '\0';
+                    buffer_ptr = strstr(length, "\r\n");
+                    buffer_ptr[0] = '\0';
 
-                    memset(inbuf,0,sizeof(4096));
-                    strcpy(inbuf, length);
+                    memset(temp_buffer,0,sizeof(4096));
+                    strcpy(temp_buffer, length);
 
                     chunklength = atoh(length);
 
-                    printf("Length: %s\n", length);
-                    printf("Length: %d\n", chunklength);
-                    h=0;
+                    printf("Received Length: %s\n", length);
+                    printf("Length Value: %d\n", chunklength);
+                    bf_index=0;
                     break;
 
                 }
             }
 
             // Get timestamp
-
             ftime(&tm2);
 
             int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
 
-            // Configurable will be better.
-            // que (strcmp(resultcode,"000")!=0)
             if ( mill > iTimeout ) {
                 printf("Timeout\n");
                 break;
@@ -623,22 +617,23 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     } else {
 
         printf("Waiting body...\n");
-        h=0;
+        bf_index=0;
+        memset(temp_buffer,0,sizeof (temp_buffer));
         // HTTP Content Length
-        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,conbuf,1))!=0 ) ||
-                ( (val = read( sd, conbuf, 1))!=0 )  )
+        while ( ( (ssl!=NULL) && (val = SSL_read(ssl,c_buffer,1))!=0 ) ||
+                ( (val = read( sd, c_buffer, 1))!=0 )  )
         {
             char length[4096];
 
             if (val > 0 ) {
-                length[h++] = conbuf[0];
+                temp_buffer[bf_index++] = c_buffer[0];
 
-                response[respcounter++]=conbuf[0];
+                response[rsp_index++]=c_buffer[0];
 
-                if (h==contentlength)
+                if (bf_index==contentlength)
                 {
                     // Check for the watermark inside the reply (IF WATERMARK IN, ERROR)
-                    if ( errorWaterMark != NULL && strstr(inbuf,errorWaterMark)!=NULL ) {
+                    if ( errorWaterMark != NULL && strstr(temp_buffer,errorWaterMark)!=NULL ) {
                         iapperror = 1;
                         break;
                     }
@@ -659,78 +654,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
             }
         }
     }
-
-    /**
-
-    while ( ( (ssl!=NULL) && (val = SSL_read(ssl,inbuf,4096))!=0 ) ||
-            ( (val = read( sd, inbuf, 4096))!=0 )  )
-    {
     
-	    if (val > 0 ) {
-	        inbuf[val] = '\0';
-            if (DEBUG) 
-	            printf ("%s", inbuf);
-			
-            // Get the cookie if present.
-	        if ( strstr(inbuf, "Set-Cookie") != NULL ) {
-		    
-    		    hinbuf = strstr(inbuf,"Set-Cookie")+12;
-		    
-                for(i=0;hinbuf< strstr( strstr(inbuf,"Set-Cookie")+12,";");hinbuf+=sizeof(char)) {
-	                aux[i]=*(hinbuf);
-	                i++;
-                } 
-		    
-		        aux[i]='\0';
-		        printf ("Read Cookie: %s\r\n", aux);
-		        strcpy(jsession, aux);
-    	    }
-	    
-            // Sets ResultCode
-            if (strstr(inbuf,"HTTP/1.")!=NULL) {
-                strncpy(resultcode,strstr(inbuf,"HTTP/1.")+9,3);
-                
-                // If I need to check HTTP being here is enough because I already have
-                // a working connection (with or without SSL) and a valid HTTP response.
-                
-                // If I want to check for more information I need to check what the server
-                // is saying.
-                if (errorWaterMark == NULL) {
-                    // NoWatermark, for this application only HTTP is required.
-                    break;
-                }
-            }
-
-            
-            // Check for the watermark inside the reply (IF WATERMARK IN, ERROR)
-            if ( errorWaterMark != NULL && strstr(inbuf,errorWaterMark)!=NULL ) { 
-                iapperror = 1;
-                break;
-            }
-
-            if (strstr(inbuf,"</HTML>") != NULL) {
-                // Heuristic to speed up the processing time.
-                // Content-Length could also work.
-                break;
-            }
-
-        }
-
-        // Get timestamp
-
-        ftime(&tm2);
-
-        int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
-
-        // Configurable will be better.
-        // que (strcmp(resultcode,"000")!=0)
-        if ( mill > iTimeout ) {
-            break;
-        }
-	
-    }**/
-    
-
     elapsedTime = time(NULL) - elapsedTime;
     ftime(&tm2);
 
