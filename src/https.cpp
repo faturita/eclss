@@ -76,6 +76,23 @@ unsigned int atoh(char *ap)
     return(n);
 }
 
+void bookeep(char *path, char * resultcode, long elapsedtime, int iapperror)
+{
+    char timestamp[256];
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    sprintf(timestamp, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+    FILE *fp = fopen("bot.csv","a");
+    if (fp != NULL)
+    {
+        char message[1024];
+        sprintf(message,"%s, %s,%s,%ld,%d\n", timestamp, path, resultcode,elapsedtime,iapperror );
+        fputs(message, fp);
+        fclose(fp);
+    }
+}
+
 /**
  * Java-Like Get index of.
  **/ 
@@ -531,7 +548,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
                         }
                     }
 
-                    if (iapperror==0)
+                    if (iapperror==1)
                     {
                         system("osascript -e 'tell application \"Messages\" to send \"Página del Gobierno de la Ciudad Vacunas\"  to buddy \"Julieta Besteiro\"'");
                     }
@@ -714,13 +731,12 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
     }**/
     
 
-
-
-
     elapsedTime = time(NULL) - elapsedTime;
     ftime(&tm2);
 
     printf ("Session %s - Page %s - ResultCode %s - Elapsed Time %d\n", jsession, url->path, resultcode, (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm)); 
+
+    bookeep(url->host,resultcode,(tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm),iapperror );
 
     url->milliseconds = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
     url->httpstatus = atoi(resultcode);
