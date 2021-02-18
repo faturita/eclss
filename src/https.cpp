@@ -242,7 +242,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
     int randd;
     char resultcode[4];
-    time_t elapsedTime;
+
     int i;
     int iapperror=0;
     char headers[4096];
@@ -315,6 +315,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
     // Start Timer.
     struct timeb tm,tm2;
+    time_t elapsedTime;
 
     elapsedTime = time(NULL);
     ftime(&tm);
@@ -550,7 +551,7 @@ int http_dialog(int sd,SSL *ssl, URL *url,char *postData, char *jsession, int iT
 
                     if (iapperror==1)
                     {
-                        system("osascript -e 'tell application \"Messages\" to send \"Página del Gobierno de la Ciudad Vacunas\"  to buddy \"Julieta Besteiro\"'");
+                        // @NOTE: Use this block to send any outbound message or alert.
                     }
 
 

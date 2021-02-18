@@ -4,7 +4,7 @@
  * Super Handler of Incoming Connections.
  *
  * Monitor: Monitor here means this server.
- * 
+ *
  * Version 1.0.0 (October 17 2008)
  *
  * THIS CODE IS FURNISHED TO YOU "AS IS" WITHOUT WARRANTY OF ANY KIND.
@@ -79,18 +79,18 @@ void pthread_wait(int seconds) {
         retcode = pthread_cond_timedwait(&cond, &mutex1, &timeout);
     }
     if (retcode == ETIMEDOUT) {
-          // timeout occurred 
+          // timeout occurred
     } else {
-          // operate on x and y 
+          // operate on x and y
     }
     pthread_mutex_unlock(&mutex1);
 }
 
 /**
- * 
+ *
  * Return timestamp (since epoch).
- * 
- * 
+ *
+ *
  **/
 long currentTimeMillis() {
     struct timeb tm;
@@ -105,16 +105,16 @@ long currentTimeMillis() {
 
 /**
  * Update the XML documento, applying constraints and checking the server applications.
- * 
+ *
  * Specific batch rules can be included here.
- * 
+ *
  **/
 void * update_thread(void *arg)
 {
     // Start time.
     currentTimeMillisStarted = currentTimeMillis();
     printf ("Set start time:%ld\n", currentTimeMillisStarted);
- 
+
     // Run for ever.
     while (1) {
 
@@ -126,7 +126,7 @@ void * update_thread(void *arg)
         //}
 
         // Let's wait for the next time.
-        pthread_wait(50);
+        pthread_wait(60*5);
 
         // The following code release the document, but if you do so, historic information
         // is completely lost (like uptime for each server). However, the system will use
@@ -141,8 +141,8 @@ void * update_thread(void *arg)
 
 /**
  * Read the configuration from the XML file and generates a CONFIG structure.
- * 
- * 
+ *
+ *
  * @param   cur     Node Pointer.
  * @return  Configuration
  **/
@@ -314,7 +314,7 @@ void handlerConnectionVerifier(xmlNodePtr cur, xmlChar *name)
 /**
  * For each URL, check weather the amount of time required for checking again has expired
  * or not.
- * 
+ *
  * This allow to specify inside the XML file, for each URL, a different value of interval
  * which will allow to check at different speeds for each application.  In general, there are
  * some applications, high speed, that can support high traffic and require very quick responses
@@ -356,11 +356,42 @@ int checkInterval(xmlNodePtr innercur, xmlChar *interval, xmlChar *lastCheck)
 }
 
 
+void notify(char *api)
+{
+    // Por cada una de las URL a verificar.
+    URL structurl;
+
+    char url[256];
+    char proxyhost[256];
+    char method[256];
+    char encodedProxyPwd[256];
+    char postData[256];
+    char errorWaterMark[256];
+    char expectedWaterMark[256];
+
+
+    strcpy(url, api);
+
+    printf ("Executing Notification API %s\n",(char *)url);
+
+    strcpy(proxyhost,"");
+
+
+    strcpy(method,"GET");
+    strcpy(encodedProxyPwd,"");
+    strcpy(postData,"");
+    strcpy(errorWaterMark,"");
+    strcpy(expectedWaterMark,"");
+
+    int ret = checkSSLAccess((char *)url,(char *)method,&structurl,8000,proxyhost,0,(char *)encodedProxyPwd,(char *)postData,(char *)errorWaterMark, (char *)expectedWaterMark);
+
+}
+
 
 /**
- * Update the information in the XML with the status information of all the checked 
+ * Update the information in the XML with the status information of all the checked
  * applications.
- * 
+ *
  ***/
 xmlDocPtr updateStatus(xmlDocPtr doc)
 {
@@ -402,6 +433,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                 xmlChar *postData = xmlGetProp(innercur, (const xmlChar *)"postData");
                 xmlChar *errorWaterMark = xmlGetProp(innercur, (const xmlChar *)"errorWaterMark");
                 xmlChar *expectedWaterMark = xmlGetProp(innercur, (const xmlChar *)"expectedWaterMark");
+                xmlChar *alert = xmlGetProp(innercur, (const xmlChar *)"alertapi");
                 printf ("URL:%s\r\n",url);
                 if ( url != NULL && checkInterval(innercur,interval, lastCheck) ) {
                     // Por cada una de las URL a verificar.
@@ -430,6 +462,12 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
 
                     //free(encodedProxyPwd);
 
+                    if (ret != 0 && alert != NULL)
+                    {
+                        // @NOTE: Send alert message for some specific URL
+                        notify((char *)alert);
+                    }
+
 
                     char httpstatus[256];
                     sprintf (httpstatus,"%d",structurl.httpstatus);
@@ -437,7 +475,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                     char latency[256];
                     sprintf (latency,"%d",structurl.milliseconds);
                     xmlSetProp(innercur,(const xmlChar *)"latency", (const xmlChar *)latency);
-                    xmlSetProp(innercur,(const xmlChar *)"urlstatus", (const xmlChar *)structurl.status); 
+                    xmlSetProp(innercur,(const xmlChar *)"urlstatus", (const xmlChar *)structurl.status);
                     
                     printf("URL: %s</br>Latency: %s</br>Result HTTP: %s</br>Status: %s</br></br>",url,latency,httpstatus,structurl.status);
 
@@ -465,6 +503,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                 if (proxied != NULL) xmlFree(proxied);
                 if (interval != NULL) xmlFree(interval);
                 if (lastCheck != NULL) xmlFree(lastCheck);
+                if (alert != NULL) xmlFree(alert);
                 innercur = innercur -> next;
             }
 
@@ -472,7 +511,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
             xmlChar *oldstatus = xmlGetProp(cur,(const xmlChar *)"status");
 
             if (error == 0) {
-                xmlSetProp(cur,(const xmlChar *)"status",(const xmlChar *)"Online");                
+                xmlSetProp(cur,(const xmlChar *)"status",(const xmlChar *)"Online");
                 char html[256];
                 sprintf(html,"<html><head></head><body>App %s Online</body></html>", name);
 
@@ -487,7 +526,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                 }
 
 
-               
+
                 //syslog(LOG_INFO,"Application %s Online OK !",name);
             } else {
                 xmlSetProp(cur,(const xmlChar *)"status",(const xmlChar *)"Error");
@@ -512,7 +551,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                     int iOcurrencies = conf.alerthits-4;
                     if (ocurrencies != NULL) {
                         iOcurrencies = atoi((const char *)ocurrencies);
-                    } 
+                    }
 
                     iOcurrencies++;
 
@@ -522,7 +561,7 @@ xmlDocPtr updateStatus(xmlDocPtr doc)
                     }
 
 
-                    //if ( ( ( currentTimeMillis() - atol((const char *)timestamp) ) > 200 ) && 
+                    //if ( ( ( currentTimeMillis() - atol((const char *)timestamp) ) > 200 ) &&
                     //     ( ( currentTimeMillis() - atol((const char *)timestamp) ) < 250 ) ) {
                     //    sendmail(conf.mailhost, conf.mailport, conf.emaillist,html);
                     //}
@@ -639,14 +678,45 @@ void * request_handler_test(void *arg)
     char inbuf[4096];
     char buf[4096];
     char msg[2048];
+    char c_buffer[4096];
+    int bf_index=0;
     size_t len;
 
     sd = *((int*)arg);
 
-    while ( (val = read( sd, inbuf, 4098))>0 ) {
+    printf("Processing %d\n", sd);
+
+    // Start Timer.
+    struct timeb tm,tm2;
+    time_t elapsedTime;
+    int iTimeout = 4000;
+
+    elapsedTime = time(NULL);
+    ftime(&tm);
+
+    char header[4096];
+    // Bring in all the received HTTP Headers.
+    while ( ( (val = read( sd, c_buffer, 1))!=0 )  )
+    {
+
         if (val > 0 ) {
-            inbuf[val]='\0';
-            printf ("%s", inbuf);
+            header[bf_index++] = c_buffer[0];
+
+            if (strstr(header,"\r\n\r\n") != NULL) {
+                //printf("End of headers %s\n",header);
+                break;
+            }
+        }
+
+        // Get timestamp
+        ftime(&tm2);
+
+        int mill = (tm2.time*1000+tm2.millitm)-(tm.time*1000+tm.millitm);
+
+        // Configurable will be better.
+        if ( mill > iTimeout ) {
+            printf("Timeout\n");
+            break;
         }
     }
 
@@ -663,7 +733,7 @@ void * request_handler_test(void *arg)
     strcat(buf,"<html><head></head><body>Testing</body></html>");
 
 
-    printf("%s\n",buf);
+    //printf("%s\n",buf);
 
     val = write ( sd, buf, strlen(buf));
 
@@ -720,7 +790,7 @@ void * request_handler(void *arg)
                 xmlDocSetRootElement(doc,node);
 
                 printf ("Ready to XSL Processing....\n");
-    
+
                 if (xsltProcess(sd,doc,"eclsshelp.xsl") == -1) {
                     printf ("ERROR At XSL.!");
                     break;
@@ -773,7 +843,7 @@ void * request_handler(void *arg)
                 doc=NULL;
                 break;
 
-                
+
             } else
             if ( strstr(inbuf,"GET / ")==NULL ) {
                 // Error PAGE
@@ -790,49 +860,47 @@ void * request_handler(void *arg)
                 val = write ( sd, buf, strlen(buf));
                 break;
             } else {
-            
+                // This is a good one, show what you have.
 
-            // This is a good one, show what you have.
-            
-            // HTTP Headers.
-            strcpy(buf,"HTTP/1.1 200 Ok\r\n");
-            strcat(buf,"Date: Mon, 21 Mar 2005 12:10:37 GMT\r\n");
-            strcat(buf,"Server: MyApache/1.3.28 (Unix) mod_jk/1.2.5 mod_ssl/2.8.15 OpenSSL/0.9.7b\r\n");
-            strcat(buf,"Connection: close\r\n");
-            strcat(buf,"Content-Type: text/html; charset=iso-8859-1\r\n");
+                // HTTP Headers.
+                strcpy(buf,"HTTP/1.1 200 Ok\r\n");
+                strcat(buf,"Date: Mon, 21 Mar 2005 12:10:37 GMT\r\n");
+                strcat(buf,"Server: MyApache/1.3.28 (Unix) mod_jk/1.2.5 mod_ssl/2.8.15 OpenSSL/0.9.7b\r\n");
+                strcat(buf,"Connection: close\r\n");
+                strcat(buf,"Content-Type: text/html; charset=iso-8859-1\r\n");
 
-            strcat(buf,"\r\n");
+                strcat(buf,"\r\n");
 
-            val = write ( sd, buf, strlen(buf));
+                val = write ( sd, buf, strlen(buf));
 
-            if (val<0) {
-                printf ("Broken pipe...\n");
+                if (val<0) {
+                    printf ("Broken pipe...\n");
+                    break;
+                }
+
+                // The status can be updated on-demand.
+
+                if (doc == NULL) {
+                    doc = updateStatus(doc);
+                }
+
+                printf ("Ready to XSL Processing....\n");
+
+                if (xsltProcess(sd,doc,"eclss.xsl") == -1) {
+                    printf ("Error AT XSL.!");
+                    break;
+                }
+
+
+                //xmlFreeDoc(doc);
+                //doc=NULL;
+                //xmlCleanupParser();
+
+                //sprintf (buf,"<html><head></head><body><script>window.location.reload()</script></body></html>");
+                //val = write( sd,buf, strlen(buf));
+
+
                 break;
-            }
-
-            // The status can be updated on-demand.
-
-            if (doc == NULL) {
-                doc = updateStatus(doc);
-            }
-
-            printf ("Ready to XSL Processing....\n");
-
-            if (xsltProcess(sd,doc,"eclss.xsl") == -1) {
-                printf ("Error AT XSL.!");
-                break;
-            }
-
-          
-            //xmlFreeDoc(doc);
-            //doc=NULL;
-            //xmlCleanupParser();
-
-            //sprintf (buf,"<html><head></head><body><script>window.location.reload()</script></body></html>");
-            //val = write( sd,buf, strlen(buf));
-
-
-            break;
             }
         } else {
             printf ("Error from the client (Broken pipe)\n");

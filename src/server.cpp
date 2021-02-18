@@ -7,7 +7,7 @@
  * System Monitor Application
  *
  * Starting Date: 20/03/2005
- * Author:  $Author: fatu $
+ * Author:  $Author: faturita $
  * Version: $Revision: 1.9 $
  *
  *
@@ -68,6 +68,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <dlfcn.h>
 #include <sys/types.h>
@@ -291,7 +292,7 @@ int main(int argc, char *argv[]) {
     //param.sched_priority = 10;
     //pthread_setschedparam(updatethread, SCHED_RR, &param);
 
-  	pthread_create(&updatethread, &tattr, &update_thread, NULL);
+    pthread_create(&updatethread, &tattr, &update_thread, NULL);
   	
     pthread_t th;
     while (1) {
@@ -302,18 +303,21 @@ int main(int argc, char *argv[]) {
 
         pthread_attr_t  attr;
         pthread_attr_init(&attr);
-        //pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+        pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
 
-        //pthread_create(&th, &attr, &request_handler_test, (void*)&sd);
+        // @NOTE: If you create the thread too quickly, the sd value is replaced by accept when two connections arrive simultaneously.
+        //        and that means that one socket identifier is lost and the client will hang.
+        pthread_create(&th, &attr, &request_handler, (void*)&sd);
+        usleep(3000);                                                   // @NOTE: Wait to avoid loosing parameters inside the thread.
 
         
-        if ( fork() == 0) {
-            request_handler(&sd);
-            close(sd);
-            exit(0);
-        } else {
-            close (sd);
-        }
+        //if ( fork() == 0) {
+        //    request_handler(&sd);
+        //    close(sd);
+        //    exit(0);
+        //} else {
+        //    close (sd);
+        //}
             
             
         //pthread_join( th, NULL);
